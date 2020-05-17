@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"io/ioutil"
 	"log"
+	"strconv"
 )
 
 type task struct {
@@ -31,7 +32,7 @@ var tasks = allTasks{
 }
 
 func getTasks(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tasks)
 }
 
@@ -53,6 +54,65 @@ func createTask(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(newTask)
 }
 
+func getTask(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	taskID, err := strconv.Atoi(vars["id"])
+
+	if err != nil {
+		fmt.Fprintf(w, "Invalid ID")
+		return
+	}
+	for _, task := range tasks {
+		if task.ID == taskID {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(task)
+		}
+	}
+}
+
+func deleteTask(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	taskID, err := strconv.Atoi(vars["id"])
+
+	if err != nil {
+		fmt.Fprintf(w, "Invalid ID")
+		return
+	}
+
+	for i, t := range tasks {
+		if t.ID == taskID {
+			tasks = append(tasks[:i], tasks[i+1:]...)
+			fmt.Fprintf(w, "The task with ID %v has been deleted successfully", taskID)
+		}
+	}
+}
+
+func updateTask(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	taskID, err := strconv.Atoi(vars["id"])
+	var updatedTask task
+
+	if err != nil {
+		fmt.Fprintf(w, "Invalid ID")
+	}
+
+	reqBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		fmt.Fprintf(w, "Please insert valid data")
+	}
+	json.Unmarshal(reqBody, &updatedTask)
+
+	for i, task := range tasks {
+		if task.ID == taskID {
+			tasks := append(tasks[:i], tasks[i + 1:]...)
+			updatedTask.ID = taskID
+			tasks = append(tasks, updatedTask)
+
+			fmt.Fprintf(w, "The task with ID %v has been updated successfully", taskID)
+		}
+	}
+}
+
 func indexRoute(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Welcome to my REST API jj")
 }
@@ -64,6 +124,9 @@ func main() {
 	router.HandleFunc("/", indexRoute)
 	router.HandleFunc("/tasks", getTasks).Methods("GET")
 	router.HandleFunc("/tasks", createTask).Methods("POST")
-
+	router.HandleFunc("/tasks/{id}", getTask).Methods("GET")
+	router.HandleFunc("/tasks/{id}", deleteTask).Methods("DELETE")
+	router.HandleFunc("/tasks/{id}", updateTask).Methods("PATCH", "PUT")
+	
 	log.Fatal(http.ListenAndServe(":3000", router))
 }
